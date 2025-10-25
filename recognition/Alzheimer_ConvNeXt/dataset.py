@@ -15,24 +15,18 @@ def pad_256x240(img):
     pad = (0, 8, 0, 8)  # left, top, right, bottom
     return TF.pad(img, pad, fill=0) #fill = black
 
-def build_transforms(img_size=224):
+def build_transforms(img_size=256):
     return transforms.Compose([
-        transforms.Grayscale(num_output_channels=3), #since convnext needs input 3 channels
         pad_256x240,  
         transforms.Resize((img_size, img_size)),
         transforms.ToTensor(),
-        #https://docs.pytorch.org/vision/main/models/generated/torchvision.models.convnext_large.html
         transforms.Normalize(mean=[0.485, 0.456, 0.406], 
                              std=[0.229, 0.224, 0.225])
     ])
 
 
 
-def build_loaders(root: str | Path,
-                  batch_size: int = 32,
-                  num_workers: int = 4,
-                  img_size: int = 224
-                  ):
+def build_loaders(root, batch_size= 32, num_workers = 4, img_size = 256):
     
     root = Path(root)
     train_dir = root / "train"
