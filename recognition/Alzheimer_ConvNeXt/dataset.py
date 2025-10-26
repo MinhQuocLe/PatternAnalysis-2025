@@ -1,7 +1,7 @@
 #Containing the data loader for loading and preprocessing your data
 
 # dataset.py
-# Minimal JPEG dataset loader for ConvNeXt (224x224x3) using torchvision ImageFolder.
+
 
 from pathlib import Path
 from torch.utils.data import DataLoader
@@ -18,10 +18,10 @@ def pad_256x240(img):
 def build_transforms(img_size=256):
     return transforms.Compose([
         pad_256x240,  
+        transforms.Grayscale(num_output_channels=1),
         transforms.Resize((img_size, img_size)),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], 
-                             std=[0.229, 0.224, 0.225])
+        transforms.Normalize(mean=[0.5], std=[0.5])
     ])
 
 
