@@ -17,14 +17,25 @@ def pad_256x240(img):
     pad = (0, 8, 0, 8)  # left, top, right, bottom
     return TF.pad(img, pad, fill=0) #fill = black
 
-def build_transforms(img_size=256):
-    return transforms.Compose([
-        pad_256x240,  
+def build_transforms(img_size=256, is_train=True):
+    base = [
+        pad_256x240,
         transforms.Grayscale(num_output_channels=1),
         transforms.Resize((img_size, img_size)),
+    ]
+    if is_train:
+        base += [
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomRotation(15),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2),
+            transforms.RandomResizedCrop(img_size, scale=(0.8, 1.0)),
+        ]
+    base += [
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5], std=[0.5])
-    ])
+        transforms.Normalize(mean=[0.5], std=[0.5]),
+    ]
+    return transforms.Compose(base)
+
 
 # ---- Helper: extract patient id from "808819_106.png" -> "808819" ----
 def patient_id_from_path(p: str) -> str:
@@ -45,8 +56,8 @@ def build_loaders(root, batch_size=32, num_workers=4, img_size=224, val_split=0.
     train_dir = Path(root) / "train"
     test_dir  = Path(root) / "test"
 
-    tfms_train = build_transforms(img_size)
-    tfms_eval  = build_transforms(img_size)  
+    tfms_train = build_transforms(img_size, is_train=True)
+    tfms_eval  = build_transforms(img_size, is_train=False) 
 
     # Base dataset to enumerate samples & classes (NO heavy augments here)
     base = datasets.ImageFolder(str(train_dir))  # no transform; we only need .samples and .class_to_idx
