@@ -7,6 +7,7 @@ from pathlib import Path
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 import torchvision.transforms.functional as TF
+from torch.utils.data import random_split
 
 
 #Pad top/bottom 8px to make our 256x240 to 256x256
@@ -25,24 +26,21 @@ def build_transforms(img_size=256):
     ])
 
 
+def build_loaders(root, batch_size=32, num_workers=4, img_size=224, val_split=0.2):
+    train_dir = Path(root) / "train"
+    test_dir  = Path(root) / "test"
 
-def build_loaders(root, batch_size= 32, num_workers = 4, img_size = 256):
-    
-    root = Path(root)
-    train_dir = root / "train"
-    test_dir = root / "test"
+    tfms = build_transforms(img_size)
+    full_train = datasets.ImageFolder(str(train_dir), transform=tfms)
 
-    train_tfms = build_transforms(img_size=img_size)
+    val_len = int(len(full_train) * val_split)
+    train_len = len(full_train) - val_len
+    train_ds, val_ds = random_split(full_train, [train_len, val_len])
 
-    train_ds = datasets.ImageFolder(str(train_dir), transform=train_tfms)
-    test_ds  = datasets.ImageFolder(str(test_dir),  transform=train_tfms)
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    val_loader   = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+    test_loader  = DataLoader(datasets.ImageFolder(str(test_dir), transform=tfms),
+                              batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
-    train_loader = DataLoader(
-        train_ds, batch_size=batch_size, shuffle=True,
-        num_workers=num_workers, pin_memory=True
-    )
-    test_loader = DataLoader(
-        test_ds, batch_size=batch_size, shuffle=False,
-        num_workers=num_workers, pin_memory=True    
-    )
-    return train_loader, test_loader, train_ds.class_to_idx #since ad is before nc: ad = 0, nc =1 
+    return train_loader, val_loader, test_loader, full_train.class_to_idx
+
