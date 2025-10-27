@@ -1,10 +1,12 @@
 # train.py — minimal diff version
-import torch, os
+import torch
+import os
 import torch.nn as nn
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from dataset import build_loaders
 from modules import ConvNeXt
+import numpy as np
 
 print("PyTorch Version:", torch.__version__)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -14,14 +16,14 @@ print("Using device:", device)
 data_root = "/home/groups/comp3710/ADNI/AD_NC"
 batch_size = 32
 num_workers = 0
-num_epochs = 50
+num_epochs = 1
 learning_rate = 1e-3
 weight_decay = 5e-2
 label_smoothing = 0.1
 patience = 8                                 # early stopping
-ckpt_path = "checkpoints/best_convnext.pth"
-os.makedirs("checkpoints", exist_ok=True)
-os.makedirs("plots", exist_ok=True)
+best_epoch = 1
+ckpt_path = "logs/best_convnext.pth"
+os.makedirs("logs", exist_ok=True)
 
 # ---- Data (now returns train/val/test) ----
 train_loader, val_loader, test_loader, class_to_idx = build_loaders(
@@ -86,6 +88,7 @@ for epoch in range(num_epochs):
     # --- Early stopping + checkpoint ---
     if va_acc > best_val_acc:
         best_val_acc = va_acc
+        best_epoch = epoch + 1            # <-- track best epoch
         torch.save(model.state_dict(), ckpt_path)
         epochs_no_improve = 0
         print(f"  ↑ New best; saved to {ckpt_path}")
@@ -95,30 +98,37 @@ for epoch in range(num_epochs):
             print(f"  Early stopping (no improvement {patience} epochs).")
             break
 
-# ---- Plots ----
-epochs_r = range(1, len(train_losses) + 1)
-plt.figure(figsize=(10,4))
-plt.subplot(1,2,1); plt.plot(epochs_r, train_losses, label="train"); plt.plot(epochs_r, val_losses, label="val")
-plt.title("Loss"); plt.xlabel("epoch"); plt.legend()
-plt.subplot(1,2,2); plt.plot(epochs_r, train_accs, label="train"); plt.plot(epochs_r, val_accs, label="val")
-plt.title("Accuracy"); plt.xlabel("epoch"); plt.legend()
-plt.tight_layout(); plt.savefig("plots/training_curves.png", dpi=150); plt.close()
-print("Saved plots to plots/training_curves.png")
+def draw_training_curves(train_loss, val_loss, best_epoch, patience, save_dir="logs", show_plot=False):
+    """
+    Plot training and validation loss on one graph.
+    Marks the epoch where early stopping was triggered.
+    """
+    import matplotlib.pyplot as plt, os, numpy as np
+    os.makedirs(save_dir, exist_ok=True)
 
-# ---- Final test (best checkpoint) + confusion matrix ----
-state = torch.load(ckpt_path, map_location=device)
-model.load_state_dict(state)
-model.eval()
-all_preds, all_labels = [], []
-with torch.no_grad():
-    for x, y in test_loader:
-        x = x.to(device)
-        out = model(x)
-        all_preds.extend(out.argmax(1).cpu().tolist())
-        all_labels.extend(y.tolist())
-cm = confusion_matrix(all_labels, all_preds)
-disp = ConfusionMatrixDisplay(cm, display_labels=[k for k,_ in sorted(class_to_idx.items(), key=lambda kv: kv[1])])
-disp.plot(cmap="Blues")
-plt.title("Test Confusion Matrix (best checkpoint)")
-plt.savefig("plots/test_confusion_matrix.png", dpi=150); plt.close()
-print("Saved confusion matrix to plots/test_confusion_matrix.png")
+    epochs = np.arange(1, len(train_loss) + 1)
+    plt.figure(figsize=(8, 5))
+    plt.plot(epochs, train_loss, label="Training Loss", linewidth=2)
+    plt.plot(epochs, val_loss, label="Validation Loss", linewidth=2)
+    
+    # mark early stopping line
+    stop_epoch = best_epoch + patience if best_epoch + patience <= len(epochs) else len(epochs)
+    plt.axvline(x=stop_epoch, color="r", linestyle="--", label="Early Stopping")
+    
+    plt.title("Training & Validation Loss over Epochs")
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
+    plt.legend(frameon=False)
+    plt.grid(alpha=0.25)
+    plt.tight_layout()
+
+    save_path = os.path.join(save_dir, "loss_curve.png")
+    plt.savefig(save_path, dpi=150)
+    print(f"Saved training curve → {save_path}")
+
+    if show_plot:
+        plt.show()
+    plt.close()
+draw_training_curves(train_losses, val_losses, best_epoch, patience)
+print(f"Done. Best val acc = {best_val_acc:.3f} at epoch {best_epoch}.")
+print("Evaluate + make confusion matrix via: predict.py --ckpt logs/best_convnext.pth --split test")
