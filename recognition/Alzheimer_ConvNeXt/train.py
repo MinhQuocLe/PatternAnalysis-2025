@@ -3,7 +3,6 @@ import torch
 import os
 import torch.nn as nn
 import matplotlib.pyplot as plt
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from dataset import build_loaders
 from modules import ConvNeXt
 import numpy as np
@@ -14,26 +13,26 @@ print("Using device:", device)
 
 # ---- Hyperparameters ----
 data_root = "/home/groups/comp3710/ADNI/AD_NC"
-batch_size = 32
-num_workers = 0
-num_epochs = 1
-learning_rate = 1e-3
-weight_decay = 5e-2
-label_smoothing = 0.1
-patience = 8                                 # early stopping
+batch_size = 128
+num_workers = 8
+num_epochs = 300
+learning_rate = 3e-4
+weight_decay = 5e-4
+label_smoothing = 0.05
+patience = 50                                # early stopping
 best_epoch = 1
 ckpt_path = "logs/best_convnext.pth"
 os.makedirs("logs", exist_ok=True)
 
 # ---- Data (now returns train/val/test) ----
 train_loader, val_loader, test_loader, class_to_idx = build_loaders(
-    root=data_root, batch_size=batch_size, num_workers=num_workers, img_size=224, val_split=0.2
+    root=data_root, batch_size=batch_size, num_workers=num_workers, img_size=256, val_split=0.2
 )
 num_classes = len(class_to_idx)
 print("Class mapping:", class_to_idx)
 
 # ---- Model, loss, optimizer ----
-model = ConvNeXt(num_classes=num_classes, in_chans=1, drop_path_rate=0.1).to(device)
+model = ConvNeXt(num_classes=num_classes, in_chans=1, drop_path_rate=0.2).to(device)
 criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
 optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
@@ -98,37 +97,46 @@ for epoch in range(num_epochs):
             print(f"  Early stopping (no improvement {patience} epochs).")
             break
 
-def draw_training_curves(train_loss, val_loss, best_epoch, patience, save_dir="logs", show_plot=False):
+def draw_training_curves(train_loss, val_loss, train_acc, val_acc, save_dir="logs", show_plot=False):
     """
-    Plot training and validation loss on one graph.
-    Marks the epoch where early stopping was triggered.
+    Plot and save both training/validation loss and accuracy curves.
     """
     import matplotlib.pyplot as plt, os, numpy as np
     os.makedirs(save_dir, exist_ok=True)
-
     epochs = np.arange(1, len(train_loss) + 1)
-    plt.figure(figsize=(8, 5))
-    plt.plot(epochs, train_loss, label="Training Loss", linewidth=2)
-    plt.plot(epochs, val_loss, label="Validation Loss", linewidth=2)
-    
-    # mark early stopping line
-    stop_epoch = best_epoch + patience if best_epoch + patience <= len(epochs) else len(epochs)
-    plt.axvline(x=stop_epoch, color="r", linestyle="--", label="Early Stopping")
-    
-    plt.title("Training & Validation Loss over Epochs")
-    plt.xlabel("Epochs")
+
+    plt.figure(figsize=(12, 5))
+
+    # ---- Loss plot ----
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs, train_loss, label="Train Loss", linewidth=2)
+    plt.plot(epochs, val_loss, label="Val Loss", linewidth=2)
+    plt.title("Loss over Epochs")
+    plt.xlabel("Epoch")
     plt.ylabel("Loss")
     plt.legend(frameon=False)
-    plt.grid(alpha=0.25)
-    plt.tight_layout()
+    plt.grid(alpha=0.3)
 
-    save_path = os.path.join(save_dir, "loss_curve.png")
+    # ---- Accuracy plot ----
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs, train_acc, label="Train Acc", linewidth=2)
+    plt.plot(epochs, val_acc, label="Val Acc", linewidth=2)
+    plt.title("Accuracy over Epochs")
+    plt.xlabel("Epoch")
+    plt.ylabel("Accuracy")
+    plt.legend(frameon=False)
+    plt.grid(alpha=0.3)
+
+    plt.tight_layout()
+    save_path = os.path.join(save_dir, "train_val_curves.png")
     plt.savefig(save_path, dpi=150)
-    print(f"Saved training curve → {save_path}")
+    print(f"Saved training curves → {save_path}")
 
     if show_plot:
         plt.show()
     plt.close()
-draw_training_curves(train_losses, val_losses, best_epoch, patience)
+
+# Save curves
+draw_training_curves(train_losses, val_losses, train_accs, val_accs)
 print(f"Done. Best val acc = {best_val_acc:.3f} at epoch {best_epoch}.")
-print("Evaluate + make confusion matrix via: predict.py --ckpt logs/best_convnext.pth --split test")
+print("Evaluate + make confusion matrix via: predict.py")
