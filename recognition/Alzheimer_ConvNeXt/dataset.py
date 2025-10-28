@@ -25,11 +25,13 @@ def build_transforms(img_size=256, is_train=True):
     ]
     if is_train:
         base += [
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomRotation(15),
-            transforms.ColorJitter(brightness=0.2, contrast=0.2),
-            transforms.RandomResizedCrop(img_size, scale=(0.8, 1.0)),
-        ]
+        transforms.RandomAffine(
+            degrees=7, translate=(0.04, 0.04), scale=(0.97, 1.03)
+        ),
+        transforms.ColorJitter(brightness=0.15, contrast=0.15),
+        transforms.Lambda(lambda img: TF.adjust_gamma(img, random.uniform(0.90, 1.10))),
+        transforms.RandomApply([transforms.GaussianBlur(3)], p=0.2),
+    ]
     base += [
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.5], std=[0.5]),
