@@ -18,7 +18,7 @@ num_workers = 8
 num_epochs = 300
 learning_rate = 3e-4
 weight_decay = 5e-4
-label_smoothing = 0.05
+label_smoothing = 0.1
 patience = 50                                # early stopping
 best_epoch = 1
 ckpt_path = "logs/best_convnext.pth"
@@ -33,8 +33,13 @@ print("Class mapping:", class_to_idx)
 
 # ---- Model, loss, optimizer ----
 model = ConvNeXt(num_classes=num_classes, in_chans=1, drop_path_rate=0.2).to(device)
-criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
+criterion = nn.CrossEntropyLoss(weight=torch.tensor([1.4, 1.0], device=device),label_smoothing=0.1)
 optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+
+warmup_epochs = 5
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+    optimizer, T_max=num_epochs - warmup_epochs
+)
 
 # ---- Tracking ----
 train_losses, val_losses, train_accs, val_accs = [], [], [], []
@@ -96,6 +101,13 @@ for epoch in range(num_epochs):
         if epochs_no_improve >= patience:
             print(f"  Early stopping (no improvement {patience} epochs).")
             break
+    # ---- Scheduler step  ----
+    if epoch < warmup_epochs:
+        for g in optimizer.param_groups:
+            g["lr"] = learning_rate * float(epoch + 1) / warmup_epochs
+    else:
+        scheduler.step()
+
 
 def draw_training_curves(train_loss, val_loss, train_acc, val_acc, save_dir="logs", show_plot=False):
     """
