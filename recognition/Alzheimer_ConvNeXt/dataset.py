@@ -7,6 +7,7 @@ from pathlib import Path
 from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, transforms
 import torchvision.transforms.functional as TF
+import torch
 import random
 import os
 
@@ -19,23 +20,26 @@ def pad_256x240(img):
 
 def build_transforms(img_size=256, is_train=True):
     base = [
-        pad_256x240,
-        transforms.Grayscale(num_output_channels=1),
-        transforms.Resize((img_size, img_size)),
+        pad_256x240,                                   
+        transforms.Grayscale(num_output_channels=1),   
+        transforms.Resize((img_size, img_size), antialias=True),  
     ]
     if is_train:
         base += [
-        transforms.RandomAffine(
-            degrees=7, translate=(0.04, 0.04), scale=(0.97, 1.03)
-        ),
-        transforms.ColorJitter(brightness=0.15, contrast=0.15),
-        transforms.Lambda(lambda img: TF.adjust_gamma(img, random.uniform(0.90, 1.10))),
-        transforms.RandomApply([transforms.GaussianBlur(3)], p=0.2),
-    ]
-    base += [
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5], std=[0.5]),
-    ]
+            transforms.RandomAffine(degrees=7, translate=(0.04, 0.04), scale=(0.97, 1.03)),
+            transforms.ColorJitter(brightness=0.15, contrast=0.15),
+            transforms.Lambda(lambda img: TF.adjust_gamma(img, random.uniform(0.90, 1.10))),
+            transforms.RandomApply([transforms.GaussianBlur(3)], p=0.2),
+        ]
+
+    base += [transforms.ToTensor()]                    
+    if is_train:
+        base += [
+            transforms.Lambda(lambda x: torch.clamp(x + 0.02 * torch.randn_like(x), 0.0, 1.0)),
+            transforms.RandomErasing(p=0.25, scale=(0.02, 0.06), ratio=(0.33, 3.0), value=0),
+        ]
+    base += [transforms.Normalize(mean=[0.5], std=[0.5])]
+
     return transforms.Compose(base)
 
 
