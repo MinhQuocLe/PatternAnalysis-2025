@@ -13,12 +13,12 @@ print("Using device:", device)
 
 # ---- Hyperparameters ----
 data_root = "/home/groups/comp3710/ADNI/AD_NC"
-batch_size = 128
-num_workers = 8
-num_epochs = 300
-learning_rate = 3e-4
-weight_decay = 5e-4
+batch_size = 256
+num_epochs = 500
+learning_rate = 4e-3
+weight_decay  = 1e-2
 label_smoothing = 0.1
+warmup_epochs = 10
 patience = 50                                # early stopping
 best_epoch = 1
 ckpt_path = "logs/best_convnext.pth"
@@ -26,24 +26,24 @@ os.makedirs("logs", exist_ok=True)
 
 # ---- Data (now returns train/val/test) ----
 train_loader, val_loader, test_loader, class_to_idx = build_loaders(
-    root=data_root, batch_size=batch_size, num_workers=num_workers, img_size=256, val_split=0.2
+    root=data_root, batch_size=batch_size, img_size=256, val_split=0.2
 )
 num_classes = len(class_to_idx)
 print("Class mapping:", class_to_idx)
 
 # ---- Model, loss, optimizer ----
-model = ConvNeXt(num_classes=num_classes, in_chans=1, drop_path_rate=0.2).to(device)
-criterion = nn.CrossEntropyLoss(weight=torch.tensor([1.4, 1.0], device=device),label_smoothing=0.1)
+model = ConvNeXt(num_classes=num_classes, in_chans=1, drop_path_rate=0.1).to(device)
+criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
 optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
-warmup_epochs = 5
+
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
     optimizer, T_max=num_epochs - warmup_epochs
 )
 
 # ---- Tracking ----
 train_losses, val_losses, train_accs, val_accs = [], [], [], []
-best_val_acc = 0.0
+best_val_loss = float("inf")
 epochs_no_improve = 0
 
 print("Training ConvNeXt (scratch)...")
@@ -90,12 +90,12 @@ for epoch in range(num_epochs):
           f"val_loss: {va_loss:.4f}   val_acc: {va_acc:.3f}")
 
     # --- Early stopping + checkpoint ---
-    if va_acc > best_val_acc:
-        best_val_acc = va_acc
-        best_epoch = epoch + 1            # <-- track best epoch
+    if va_loss < best_val_loss:
+        best_val_loss = va_loss
+        best_epoch = epoch + 1
         torch.save(model.state_dict(), ckpt_path)
         epochs_no_improve = 0
-        print(f"  ↑ New best; saved to {ckpt_path}")
+        print(f"  ↑ New best (val_loss={va_loss:.4f}); saved to {ckpt_path}")
     else:
         epochs_no_improve += 1
         if epochs_no_improve >= patience:
@@ -150,5 +150,5 @@ def draw_training_curves(train_loss, val_loss, train_acc, val_acc, save_dir="log
 
 # Save curves
 draw_training_curves(train_losses, val_losses, train_accs, val_accs)
-print(f"Done. Best val acc = {best_val_acc:.3f} at epoch {best_epoch}.")
+print(f"Done. Best val loss = {best_val_loss:.3f} at epoch {best_epoch}.")
 print("Evaluate + make confusion matrix via: predict.py")
