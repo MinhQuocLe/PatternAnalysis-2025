@@ -43,7 +43,9 @@ def evaluate(model, loader, device):
     logits_all = torch.cat(logits_all, dim=0)
     labels_all = torch.cat(labels_all, dim=0).numpy()
     probs = F.softmax(logits_all, dim=1).numpy()
-    preds = probs.argmax(1)
+    THRESH_NC = 0.94
+    preds = (probs[:, 1] >= THRESH_NC).astype(int)
+    # ------------------------
 
     acc = (preds == labels_all).mean()
     return labels_all, preds, probs, float(acc)
