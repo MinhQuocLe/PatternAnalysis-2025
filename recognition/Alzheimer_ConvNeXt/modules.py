@@ -1,23 +1,23 @@
 """
-modules.py — ConvNeXt Tiny 
-Implements a compact ConvNeXt-Tiny for grayscale MRI slices.
-Architecture:
-    Input  → PatchEmbed → 4 ConvNeXt stages → Global Avg Pool → Linear Head
-"""
+modules.py — ConvNeXt-Tiny (Hard Difficulty, COMP3710 Project 8)
+Implements a compact ConvNeXt-Tiny architecture for binary classification
+of Alzheimer's Disease vs Normal Control using grayscale ADNI MRI slices.
 
+Key pipeline:
+    Input (1xHxW) → PatchEmbed → 4 ConvNeXt stages (feature extraction)
+    → Global Average Pooling → Linear Head (2-class logits)
+Author: Minh Quoc Le (s4939494)
+"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from timm.models.layers import trunc_normal_, DropPath
 
-
-# ----------------------------- Small helper modules -----------------------------
-
 class PatchEmbed(nn.Sequential):
-    """4x4 stride-4 stem (patch embedding) for 224→56.
+    """4x4 stride-4 stem (patch embedding) for 256→64.
     Converts 4x4 non-overlapping patches into tokens (feature vectors)."""
     def __init__(self, in_chans: int, out_chans: int):
-        # Conv with stride=4 reduces H,W by 4; CFNorm normalises channels.
+         # Conv with stride=4 reduces H,W by 4; CFNorm normalises channels.
         super().__init__(
             nn.Conv2d(in_chans, out_chans, kernel_size=4, stride=4),
             CFNorm(out_chans)
@@ -27,7 +27,6 @@ class Downsample(nn.Sequential):
     """2x2 stride-2 downsampling used between stages.
     Halves spatial size; increases channels in the next layer."""
     def __init__(self, in_chans: int, out_chans: int):
-        # CFNorm before strided conv helps stability (norm → conv).
         super().__init__(
             CFNorm(in_chans),
             nn.Conv2d(in_chans, out_chans, kernel_size=2, stride=2)
@@ -41,9 +40,6 @@ class Stage(nn.Sequential):
             ConvNeXtBlock(dim, drop_path=dp_rates[i], layer_scale_init=layer_scale_init)
             for i in range(depth)
         ])
-
-
-# ------------------------ Channel-First LayerNorm (NCHW) ------------------------
 
 class CFNorm(nn.Module):
     """
@@ -118,24 +114,17 @@ class ConvNeXtBlock(nn.Module):
             torch.Tensor: Output tensor of shape (N, C, H, W), after residual addition.
         """
         residual = x
-        # Depthwise conv in NCHW
         x = self.dwconv(x)
-        # Switch to NHWC for LN + Linear ops
-        x = x.permute(0, 2, 3, 1)
+        # Switch to NHWC for LN + Linear ops (ConvNeXt convention for efficiency)
+        x = x.permute(0, 2, 3, 1)         
         x = self.norm(x)
         x = self.pwconv1(x)
         x = self.act(x)
         x = self.pwconv2(x)
-        # Layer scale if enabled
         if self.gamma is not None:
             x = self.gamma * x
-        # Back to NCHW for later convs
-        x = x.permute(0, 3, 1, 2)
-        # Residual connection with optional stochastic depth
+        x = x.permute(0, 3, 1, 2)       # Back to NCHW for later convs
         return residual + self.drop_path(x)
-
-
-# ------------------------------- ConvNeXt-Tiny Net ------------------------------
 
 class ConvNeXt(nn.Module):
     """
@@ -152,7 +141,7 @@ class ConvNeXt(nn.Module):
         depths (tuple[int], optional): Number of blocks in each stage. Defaults to (3, 3, 9, 3).
         dims (tuple[int], optional): Channel dimensions per stage. Defaults to (96, 192, 384, 768).
         drop_path_rate (float, optional): Maximum stochastic depth rate. Defaults to 0.2.
-        layer_scale_init (float, optional): Initial value for layer scaling γ. Defaults to 1e-6.
+        layer_scale_init (float, optional): Initial value for layer scaling y. Defaults to 1e-6.
         head_init_scale (float, optional): Linear head scale multiplier. Defaults to 1.0.
     """
     def __init__(
@@ -168,7 +157,7 @@ class ConvNeXt(nn.Module):
         super().__init__()
 
         # ---- 1) Downsampling stem (patch embed + 3 reductions) ----
-        # 224→56 (PatchEmbed), then 56→28→14→7 via Downsample
+        # 256→64 (PatchEmbed), then 64→32→16→8 via Downsample
         self.downsample_layers = nn.ModuleList([
             PatchEmbed(in_chans, dims[0]),
             Downsample(dims[0], dims[1]),
@@ -182,7 +171,6 @@ class ConvNeXt(nn.Module):
         cur = 0
         self.stages = nn.ModuleList()
         for i in range(4):
-            # Build a sequential stack of ConvNeXtBlocks for stage i
             blocks = [
                 ConvNeXtBlock(
                     dims[i],
@@ -199,8 +187,7 @@ class ConvNeXt(nn.Module):
         self.norm = nn.LayerNorm(dims[-1], eps=1e-6)
         self.head = nn.Linear(dims[-1], num_classes)
 
-        # ---- 4) Weight initialisation ----
-        # Truncated normal init for Conv/Linear; scale head as per paper
+        # Weight init
         self.apply(self._init_weights)
         self.head.weight.data.mul_(head_init_scale)
         self.head.bias.data.mul_(head_init_scale)
@@ -246,18 +233,15 @@ class ConvNeXt(nn.Module):
         """
         return self.head(self.forward_features(x))
 
-
-# ---------------------------- Factory for train.py ------------------------------
-
 def build_model(in_chans=1, num_classes=2):
     """
-    Factory function to build a ConvNeXt-Tiny classifier instance.
+    Factory to build a ConvNeXt-Tiny model for ADNI classification (AD vs NC).
 
     Args:
         in_chans (int, optional): Number of input channels. Defaults to 1.
         num_classes (int, optional): Number of output classes. Defaults to 2.
 
     Returns:
-        ConvNeXt: A ConvNeXt-Tiny model ready for training.
+        ConvNeXt: Instantiated ConvNeXt-Tiny classifier ready for training/evaluation.
     """
     return ConvNeXt(in_chans=in_chans, num_classes=num_classes)
