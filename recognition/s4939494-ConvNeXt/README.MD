@@ -2,7 +2,7 @@
 
 # Overview  
 
-Alzheimer’s disease (AD) is a neurodegenerative disease and is one of the most common form of demnentia. As there is currently no cure, research and treatment focus primarily on prevention and early detection, making timely diagnosis critically important [[1]](#ref1). 
+Alzheimer’s disease (AD) is a neurodegenerative disease and is one of the most common forms of dementia. As there is currently no cure, research and treatment focus primarily on prevention and early detection, making timely diagnosis critically important [[1]](#ref1). 
 
 In this project, our goal is to reach 80% accuracy on classifying MRI brain images as either Alzheimer’s Disease (AD) or Normal Control (NC) using the ConvNeXt-Tiny architecture.
 
@@ -36,7 +36,7 @@ Due to its balance between efficiency and representational power, ConvNeXt-Tiny 
 
 # Dataset Description
 
-The dataset used is the Alzheimer’s Disease Neuroimaging Initiative (ADNI) dataset, which contains MRI scans from patients with Alzheimer’s Disease (AD) and normal controls (NC) classified. Each image is grayscale with an original resolution of 256×240 pixels and is padded to 256×256 for input into the model.
+The dataset used is the Alzheimer’s Disease Neuroimaging Initiative (ADNI) dataset, which contains MRI scans from patients with Alzheimer’s Disease (AD) and normal controls (NC) classification. Each image is grayscale with an original resolution of 256×240 pixels and is padded to 256×256 for input into the model.
 
 | Split |   AD  |   NC  | Total |
 |-------|-------|-------|-------|
@@ -133,7 +133,7 @@ To train or evaluate the model, follow these steps.
 ### 1. Clone the repository
 
 ```bash
-git clone <https://github.com/MinhQuocLe/PatternAnalysis-2025>
+git clone https://github.com/MinhQuocLe/PatternAnalysis-2025
 git checkout topic-recognition
 cd ./recognition/s4939494-convNeXt
 ```
