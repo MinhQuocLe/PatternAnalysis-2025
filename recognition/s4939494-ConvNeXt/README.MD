@@ -150,8 +150,6 @@ Assuming the dataset has been downloaded and is in its original format,  adjust 
 
 `/home/groups/comp3710/ADNI/AD_NC` or manually change the Hyperparameters data_root in `train.py` 
 
-The trained model checkpoint (.pth) will be saved automatically in the logs/ directory.
-
 ```
 /home/groups/comp3710/ADNI/AD_NC/
     train/
@@ -172,7 +170,11 @@ The trained model checkpoint (.pth) will be saved automatically in the logs/ dir
             nc_001.jpg
             nc_002.jpg
             ...
+```
 
+The trained model checkpoint (.pth) will be saved automatically in the logs/ directory.
+
+```
 s4939494-ConvNeXt/
     dataset.py
     modules.py
